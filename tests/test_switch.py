@@ -32,6 +32,14 @@ def supply_3_df():
 	df = df[["code", "800"]]
 	return df
 
+@pytest.fixture
+def supply_cisco_92304qc_df():
+	df = pd.DataFrame([
+		{"code": "92304QC", "100": "8", "40": "56", "10": "None"},
+		{"code": "92304QC", "100": "8", "40": "40", "10": "64"},
+	])
+	df = df[["code", "100", "40", "10"]]
+	return df
 
 def test_get_vertices_from_dataframe(supply_df):
 	vertices, speeds = get_vertices_from_dataframe(supply_df)
@@ -119,3 +127,13 @@ def test_linecard_only_one_dimension(supply_3_df):
 		{"code": "S2", "800": 10, "value": 10 * 800},
 	])
 	pd.testing.assert_frame_equal(result, expected)
+
+def test_cisco_92304qc(supply_cisco_92304qc_df):
+	sw = Switch(supply_cisco_92304qc_df)
+	req = pd.DataFrame([
+		{"code": "r", "100": "0", "40": "40", "10": "64"},
+	])
+	print("hola")
+	res = sw.check_if_satisfies(req)
+	print(res)
+	assert res is True

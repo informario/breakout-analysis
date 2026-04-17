@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from scipy.spatial import ConvexHull
 from scipy.optimize import linprog
+from itertools import combinations
 
 
 def get_numeric_feature_columns(df: pd.DataFrame) -> list:
@@ -40,11 +41,15 @@ def get_vertices_from_dataframe(data: pd.DataFrame):
         vertices.append(values)
 
         # si hay más de una coordenada activa, agregar proyecciones
+        # generar todas las combinaciones posibles de coordenadas no-cero (excepto el punto original)
         if len(nonzero_indices) > 1:
-            for idx in nonzero_indices:
-                proj = [0.0] * len(speeds)
-                proj[idx] = values[idx]
-                vertices.append(proj)
+            # generar combinaciones desde tamaño n-1 hasta tamaño 1
+            for r in range(len(nonzero_indices) - 1, 0, -1):
+                for combo in combinations(nonzero_indices, r):
+                    proj = [0.0] * len(speeds)
+                    for idx in combo:
+                        proj[idx] = values[idx]
+                    vertices.append(proj)
 
     return vertices, speeds
 
