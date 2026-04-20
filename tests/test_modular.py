@@ -19,6 +19,17 @@ def supply_df():
     df = df[["code", "1000", "800", "500", "400", "200", "100",  "cost", "type", "family", "maxmodules"]] #ensures order
     return df
 
+@pytest.fixture
+def supply_df2():
+    df = pd.DataFrame([
+        {"code": "M2x4", "800": None, "cost": None, "type": "modular", "maxmodules": "4", "family":None},
+        {"code": "S5", "800": "10", "type": "linecard", "family": "M1", "cost":"1000"},
+        {"code": "S3", "800": "10", "type": "linecard", "family": "M1", "cost":"100"},
+        {"code": "S4", "800": "4", "type": "linecard", "family": "M1", "cost": "30"},
+    ])
+    df = df[["code", "800", "cost", "type", "family", "maxmodules"]]
+    return df
+
 def test_modular_init(supply_df):
     modular = Modular(supply_df)
     assert modular.name == "M1x4"
@@ -111,3 +122,14 @@ def test_heuristic_h2_chooses_best_value(supply_df):
     result = modular.solve_requirement(requirement, heuristic="H2")
     assert len(result) >= 1
     assert result["code"].iloc[0] == "S3"
+
+def test_greedy_is_not_always_the_best(supply_df2):
+    """S4 individualmente tiene una mejor relación valor/costo, pero usar 1 solo de S3 es en realidad más barato"""
+    modular = Modular(supply_df2)
+    requirement = pd.DataFrame([
+        {"code": "r", "800": "10"},
+    ])
+    result = modular.solve_requirement(requirement, heuristic="H2")
+    assert len(result) >= 1
+    assert result["code"].iloc[0] == "S4"
+

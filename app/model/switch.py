@@ -57,7 +57,8 @@ def get_vertices_from_dataframe(data: pd.DataFrame):
 class Switch:
     def __init__(self, data: pd.DataFrame):
         self.code = data["code"].iloc[0]
-        self.cost = data["cost"].iloc[0] if "cost" in data.columns else 1
+        cost_value = data["cost"].iloc[0] if "cost" in data.columns else 1
+        self.cost = float(cost_value) if pd.notna(cost_value) else 1.0
         vertices, self.speeds = get_vertices_from_dataframe(data)
 
         origin = np.array([0.0] * len(self.speeds))
