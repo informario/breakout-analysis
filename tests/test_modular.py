@@ -66,7 +66,7 @@ def test_solve_requirement(supply_df):
     requirement = pd.DataFrame([
         {"code": "r", "800": "36", "400": "0"},
     ])
-    result = modular.solve_requirement(requirement)
+    result = modular.apply_heuristic(requirement)
     
     assert len(result) >= 1
     
@@ -83,7 +83,7 @@ def test_solve_requirement_multiple_linecards(supply_df):
     requirement = pd.DataFrame([
         {"code": "r", "800": "100", "400":"20"},
     ])
-    result = modular.solve_requirement(requirement)
+    result = modular.apply_heuristic(requirement)
     
     assert len(result) > 1
     print(result)
@@ -100,7 +100,7 @@ def test_solve_requirement_exceeds_maxmodules(supply_df):
     ])
     
     with pytest.raises(ValueError, match="the solution exceeds maxmodules"):
-        modular.solve_requirement(requirement)
+        modular.apply_heuristic(requirement)
 
 def test_solve_requirement_not_available(supply_df):
     """cuando la familia no dispone de un tipo de puerto, levanta error"""
@@ -111,7 +111,7 @@ def test_solve_requirement_not_available(supply_df):
     ])
     
     with pytest.raises(ValueError, match="this module does not contain linecards that can solve this requirement"):
-        modular.solve_requirement(requirement)
+        modular.apply_heuristic(requirement)
 
 def test_heuristic_h2_chooses_best_value(supply_df):
     """para 2 opciones que cumplen con el requerimiento, devuelve la más barata"""
@@ -119,7 +119,7 @@ def test_heuristic_h2_chooses_best_value(supply_df):
     requirement = pd.DataFrame([
         {"code": "r", "200": "96"},
     ])
-    result = modular.solve_requirement(requirement, heuristic="H2")
+    result = modular.apply_heuristic(requirement, heuristic="H2")
     assert len(result) >= 1
     assert result["code"].iloc[0] == "S3"
 
@@ -129,7 +129,7 @@ def test_greedy_is_not_always_the_best(supply_df2):
     requirement = pd.DataFrame([
         {"code": "r", "800": "10"},
     ])
-    result = modular.solve_requirement(requirement, heuristic="H2")
+    result = modular.apply_heuristic(requirement, heuristic="H2")
     assert len(result) >= 1
     assert result["code"].iloc[0] == "S4"
 

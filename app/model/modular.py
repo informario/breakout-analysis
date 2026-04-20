@@ -43,7 +43,7 @@ class Modular:
         
         return best_linecard, best_result
 
-    def solve_requirement(self, requirement: pd.DataFrame, heuristic="H1"):
+    def apply_heuristic(self, requirement: pd.DataFrame, heuristic="H1"):
         """selecciona linecards iterativamente,obtiene la mejor linecard
         de forma greedy
         """
@@ -94,6 +94,3 @@ class Modular:
             return pd.concat(selected_linecards, ignore_index=True)
         else:
             raise ValueError("this module does not contain linecards that can solve this requirement")
-
-
-
