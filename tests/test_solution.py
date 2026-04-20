@@ -20,6 +20,24 @@ def test_delete_random_element(supply_df):
     modular = Modular(supply_df)
     s = Solution(modular, req)
     total_before = sum(len(sublist) for sublist in s.steps if isinstance(sublist, list))
-    s.neighbor()
+    s.delete_random_element()
     total_after = sum(len(sublist) for sublist in s.steps if isinstance(sublist, list))
     assert total_after == total_before - 1
+
+
+def test_solve_requirement(supply_df):
+    """Debe seleccionar linecards hasta satisfacer completamente el requerimiento"""
+    modular = Modular(supply_df)
+    requirement = pd.DataFrame([
+        {"code": "r", "800": "36", "400": "0"},
+    ])
+    s = Solution(modular, requirement)
+    result = s.solve()
+
+    assert len(result) >= 1
+
+    assert "code" in result.columns
+    assert "800" in result.columns
+
+    total_800 = result["800"].sum()
+    assert total_800 >= 36

@@ -94,3 +94,4 @@ class Modular:
             return pd.concat(selected_linecards, ignore_index=True)
         else:
             raise ValueError("this module does not contain linecards that can solve this requirement")
+
