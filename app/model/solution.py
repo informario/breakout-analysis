@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import pandas as pd
 import random
 from app.model.modular import Modular
@@ -41,9 +42,7 @@ class Solution(State):
         - T alta: más cambios (exploración)
         - T baja: menos cambios (refinamiento)
         Si una operación falla, intenta la opuesta."""
-        new_solution = Solution(self.modular, self.requirement)
-        new_solution.steps = [sublist.copy() for sublist in self.steps]
-        new_solution.original_steps = [sublist.copy() for sublist in self.original_steps]
+        new_solution = copy.deepcopy(self)
         
         # Determine number of changes based on temperature
         if T is None or T <= 0:
