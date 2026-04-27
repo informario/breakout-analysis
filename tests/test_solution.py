@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from app.model.modular import Modular
 from app.model.solution import Solution
-from tests.test_modular import supply_df, supply_df2
+from tests.test_modular import supply_df, supply_df2, supply_df3
 
 def test_steps(supply_df):
     req = pd.DataFrame([
@@ -10,7 +10,7 @@ def test_steps(supply_df):
     ])
     modular = Modular(supply_df)
     s = Solution(modular, req)
-    assert s.steps == [modular.linecards,["800", "400", "200"]]*modular.maxmodules
+    assert s.steps == [modular.linecards]*modular.maxmodules
 
 def test_delete_random_element(supply_df):
     """Test that delete_random_element removes exactly one element and count is reduced by 1"""
@@ -102,3 +102,26 @@ def test_greedy_is_not_always_the_best(supply_df2):
     result = s.solve(heuristic="H2")
     assert len(result) >= 1
     assert result["code"].iloc[0] == "S4"
+
+
+def test_solve_cisco_small_multi_speed_requirement(supply_df3):
+    """Resuelve requerimiento con múltiples velocidades usando cisco_small supply"""
+    modular = Modular(supply_df3)
+    requirement = pd.DataFrame([{
+        'code': 'requirement',
+        '100': 16,
+        '40': 16,
+        '25': 64,
+        '10': 64,
+    }])
+    s = Solution(modular, requirement)
+    result = s.solve()
+
+    print(result)
+    assert len(result) >= 1
+    assert result["100"].sum() >= 16
+    assert result["40"].sum() >= 16
+    assert result["25"].sum() >= 64
+    assert result["10"].sum() >= 64
+
+

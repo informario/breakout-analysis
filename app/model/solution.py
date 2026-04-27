@@ -1,47 +1,110 @@
+from __future__ import annotations
+
 import pandas as pd
 import random
 from app.model.modular import Modular
 
+from abc import ABC, abstractmethod
 
-class Solution:
+try:
+    import matplotlib.pyplot as plt
+    _HAS_MPL = True
+except Exception:
+    _HAS_MPL = False
+
+class State(ABC):
+    @abstractmethod
+    def score(self) -> float:
+        raise NotImplementedError
+    @abstractmethod
+    def neighbor(self, T) -> "State":
+        raise NotImplementedError
+
+
+
+
+class Solution(State):
     def __init__(self, modular:Modular, req:pd.DataFrame):
         self.modular = modular
         linecards = self.modular.linecards
         speeds = [col for col in req.columns if isinstance(col, str) and col.replace('.', '', 1).isdigit()]
-        # Create copies of linecards and speeds for each module to avoid shared references
         self.steps = []
         for _ in range(self.modular.maxmodules):
             self.steps.append(linecards.copy())
-            self.steps.append(speeds.copy())
+            #self.steps.append(speeds.copy())
+        self.original_steps = [sublist.copy() for sublist in self.steps]
         self.requirement = req
+        self.info = None ##Last run pandas dataframe
 
-    def neighbor(self, current_solution):
-        """Genera una solución vecina, ya sea eliminar una speed o una linecard de algún step."""
-        new_solution = Solution(self.modular, current_solution)
+    def neighbor(self, T=None):
+        """Genera una solución vecina. El número de cambios depende de la temperatura:
+        - T alta: más cambios (exploración)
+        - T baja: menos cambios (refinamiento)
+        Si una operación falla, intenta la opuesta."""
+        new_solution = Solution(self.modular, self.requirement)
         new_solution.steps = [sublist.copy() for sublist in self.steps]
-        positions = []
-        for i, sublist in enumerate(new_solution.steps):
-            if isinstance(sublist, list) and len(sublist) > 0:
-                for j in range(len(sublist)):
-                    positions.append((i, j))
-        if not positions:
-            raise ValueError("No elements to delete")
-        step_idx, elem_idx = random.choice(positions)
-        new_solution.steps[step_idx].pop(elem_idx)
+        new_solution.original_steps = [sublist.copy() for sublist in self.original_steps]
+        
+        # Determine number of changes based on temperature
+        if T is None or T <= 0:
+            num_changes = 1
+        else:
+            # More changes at higher temperatures
+            # num_changes scales with T: at T=1 → 1 change, at T=10 → 1-2 changes, at T=100 → 2-3 changes
+            num_changes = max(1, int(T / 10.0) + random.choice([0, 1]))
+        
+        # Apply multiple changes
+        for _ in range(num_changes):
+            try_delete = random.choice([True, False])
+            
+            try:
+                if try_delete:
+                    new_solution.delete_random_element()
+                else:
+                    new_solution.add_random_element()
+            except ValueError:
+                # If one operation fails, try the opposite
+                try:
+                    if try_delete:
+                        new_solution.add_random_element()
+                    else:
+                        new_solution.delete_random_element()
+                except ValueError:
+                    # If both fail, continue to next iteration
+                    pass
         
         return new_solution
     
     def delete_random_element(self):
-        """Randomly deletes one element (either a linecard or a speed) from self.steps"""
+        """Randomly deletes one linecard from self.steps"""
         positions = []
-        for i, sublist in enumerate(self.steps):
+        for i in range(len(self.steps)):
+            sublist = self.steps[i]
             if isinstance(sublist, list) and len(sublist) > 0:
                 for j in range(len(sublist)):
                     positions.append((i, j))
         if not positions:
-            raise ValueError("No elements to delete")
+            raise ValueError("No linecards to delete")
         step_idx, elem_idx = random.choice(positions)
         self.steps[step_idx].pop(elem_idx)
+    
+    def add_random_element(self):
+        """Randomly adds back one linecard that was deleted from self.steps"""
+        deletable_positions = []
+        for i in range(len(self.original_steps)):
+            original_sublist = self.original_steps[i]
+            if isinstance(original_sublist, list):
+                # Find linecards in original that are not in current
+                for j, element in enumerate(original_sublist):
+                    if element not in self.steps[i]:
+                        deletable_positions.append((i, element))
+        
+        if not deletable_positions:
+            raise ValueError("No deleted linecards to re-add")
+        
+        # Randomly select one position and linecard to re-add
+        step_idx, element = random.choice(deletable_positions)
+        self.steps[step_idx].append(element)
 
     def solve(self, heuristic="H1"):
         """resuelve el requerimiento seleccionando linecards de forma greedy.
@@ -54,22 +117,30 @@ class Solution:
         selected_linecards = []
         results = []
         num_linecards = 0
-        
-        req_speeds = [col for col in requirement.columns if col != 'code']
+
+        candidate_linecards = [linecard for step in self.steps if isinstance(step, list) for linecard in step]
         available_speeds = set()
-        for linecard in self.modular.linecards:
+        for linecard in candidate_linecards:
             available_speeds.update(linecard.speeds)
         
+        req_speeds = [col for col in requirement.columns if col != 'code']
         for speed in req_speeds:
             if speed not in available_speeds:
                 raise ValueError("this module does not contain linecards that can solve this requirement")
         
         while not self._requirement_satisfied(requirement) and num_linecards < self.modular.maxmodules:
+            if num_linecards >= len(self.steps) or not isinstance(self.steps[num_linecards], list):
+                break
+
+            slot_candidates = self.steps[num_linecards]
+            if not slot_candidates:
+                break
+
             best_linecard = None
             best_result = None
             best_value = -float('inf')
             
-            for linecard in self.modular.linecards:
+            for linecard in slot_candidates:
                 # Obtener la mejor configuración para esta linecard
                 result = linecard.obtain_max_value_configuration(requirement.copy())
                 if result is not None and not result.empty:
@@ -112,3 +183,21 @@ class Solution:
             if requirement[speed].iloc[0] > 0:
                 return False
         return True
+
+
+    def score(self):
+        try:
+            solution = self.solve(heuristic="H2")
+        except ValueError:
+            self.info = []
+            return float("-inf")
+        self.info = [x.code for step in self.steps for x in step]
+        total_cost = 0.0
+        for linecard_code in solution['code'].unique():
+            linecard_rows = solution[solution['code'] == linecard_code]
+            count = len(linecard_rows)
+            for linecard in self.modular.linecards:
+                if linecard.code == linecard_code:
+                    total_cost += linecard.cost * count
+                    break
+        return -total_cost

@@ -23,12 +23,32 @@ def supply_df():
 def supply_df2():
     df = pd.DataFrame([
         {"code": "M2x4", "800": None, "cost": None, "type": "modular", "maxmodules": "4", "family":None},
-        {"code": "S5", "800": "10", "type": "linecard", "family": "M1", "cost":"1000"},
         {"code": "S3", "800": "10", "type": "linecard", "family": "M1", "cost":"100"},
+        {"code": "S5", "800": "10", "type": "linecard", "family": "M1", "cost":"1000"},
         {"code": "S4", "800": "4", "type": "linecard", "family": "M1", "cost": "30"},
     ])
     df = df[["code", "800", "cost", "type", "family", "maxmodules"]]
     return df
+
+@pytest.fixture
+def supply_df3():
+    df = pd.DataFrame([
+        {"code": "9516", "type": "modular", "maxmodules": "16", "family": "9500", "cost": 25000},
+        {"code": "9508", "type": "modular", "maxmodules": "8", "family": "9500", "cost": 1200},
+        {"code": "9504", "type": "modular", "maxmodules": "4", "family": "9500", "cost": 5000},
+        # 4x100 combinations
+        {"code": "N9K-X97160YC-EX", "100": 4, "25": 48, "type": "linecard", "family": "9500", "cost": 3200},
+        {"code": "N9K-X97160YC-EX", "100": 4, "10": 48, "type": "linecard", "family": "9500", "cost": 3200},
+        {"code": "N9K-X97160YC-EX", "100": 4, "1": 48, "type": "linecard", "family": "9500", "cost": 3200},
+        # 4x40 combinations
+        {"code": "N9K-X97160YC-EX", "40": 4, "25": 48, "type": "linecard", "family": "9500", "cost": 3200},
+        {"code": "N9K-X97160YC-EX", "40": 4, "10": 48, "type": "linecard", "family": "9500", "cost": 3200},
+        {"code": "N9K-X97160YC-EX", "40": 4, "1": 48, "type": "linecard", "family": "9500", "cost": 3200},
+    ])
+
+    df = df[["code", "100", "40", "25", "10", "1", "cost", "type", "family", "maxmodules"]]
+    return df
+
 
 def test_modular_init(supply_df):
     modular = Modular(supply_df)
