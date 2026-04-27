@@ -25,6 +25,8 @@ class State(ABC):
 
 
 class Solution(State):
+    _seen_states = set()
+
     def __init__(self, modular:Modular, req:pd.DataFrame):
         self.modular = modular
         linecards = self.modular.linecards
@@ -36,42 +38,56 @@ class Solution(State):
         self.original_steps = [sublist.copy() for sublist in self.steps]
         self.requirement = req
         self.info = None ##Last run pandas dataframe
+        self._register_state()
+
+    def _state_key(self):
+        return tuple(tuple(linecard.code for linecard in step) for step in self.steps)
+
+    def _register_state(self):
+        self.__class__._seen_states.add(self._state_key())
 
     def neighbor(self, T=None):
         """Genera una solución vecina. El número de cambios depende de la temperatura:
         - T alta: más cambios (exploración)
         - T baja: menos cambios (refinamiento)
         Si una operación falla, intenta la opuesta."""
-        new_solution = copy.deepcopy(self)
-        
-        # Determine number of changes based on temperature
-        if T is None or T <= 0:
-            num_changes = 1
-        else:
-            # More changes at higher temperatures
-            # num_changes scales with T: at T=1 → 1 change, at T=10 → 1-2 changes, at T=100 → 2-3 changes
-            num_changes = max(1, int(T / 10.0) + random.choice([0, 1]))
-        
-        # Apply multiple changes
-        for _ in range(num_changes):
-            try_delete = random.choice([True, False])
+        max_attempts = 10
+        for _ in range(max_attempts):
+            new_solution = copy.deepcopy(self)
             
-            try:
-                if try_delete:
-                    new_solution.delete_random_element()
-                else:
-                    new_solution.add_random_element()
-            except ValueError:
-                # If one operation fails, try the opposite
+            # Determine number of changes based on temperature
+            if T is None or T <= 0:
+                num_changes = 1
+            else:
+                # More changes at higher temperatures
+                # num_changes scales with T: at T=1 → 1 change, at T=10 → 1-2 changes, at T=100 → 2-3 changes
+                num_changes = max(1, int(T / 10.0) + random.choice([0, 1]))
+            
+            # Apply multiple changes
+            for _ in range(num_changes):
+                try_delete = random.choice([True, False])
+                
                 try:
                     if try_delete:
-                        new_solution.add_random_element()
-                    else:
                         new_solution.delete_random_element()
+                    else:
+                        new_solution.add_random_element()
                 except ValueError:
-                    # If both fail, continue to next iteration
-                    pass
-        
+                    # If one operation fails, try the opposite
+                    try:
+                        if try_delete:
+                            new_solution.add_random_element()
+                        else:
+                            new_solution.delete_random_element()
+                    except ValueError:
+                        # If both fail, continue to next iteration
+                        pass
+
+            state_key = new_solution._state_key()
+            if state_key not in self.__class__._seen_states:
+                self.__class__._seen_states.add(state_key)
+                return new_solution
+
         return new_solution
     
     def delete_random_element(self):
@@ -86,7 +102,7 @@ class Solution(State):
             raise ValueError("No linecards to delete")
         step_idx, elem_idx = random.choice(positions)
         self.steps[step_idx].pop(elem_idx)
-    
+
     def add_random_element(self):
         """Randomly adds back one linecard that was deleted from self.steps"""
         deletable_positions = []
@@ -200,3 +216,4 @@ class Solution(State):
                     total_cost += linecard.cost * count
                     break
         return -total_cost
+
