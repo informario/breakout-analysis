@@ -1,0 +1,222 @@
+{
+  "_description": "Constraint spec for generating realistic switch port-count tuples in Clos datacenter topologies.",
+
+  "_tuple_format": "(dc_type, role, {speed_gbps: port_count, ...})",
+
+  "_generation_algorithm": {
+    "asymmetric": [
+      "1. Sample speed_pair (down_spd, up_spd) weighted by 'weight'",
+      "2. Sample n_up from [min_up_ports, max_up_ports] in steps of port_granularity",
+      "3. Sample oversub uniformly from oversub_range",
+      "4. Compute n_down = round(oversub * n_up * up_spd / down_spd) aligned to port_granularity",
+      "5. Validate: n_up + n_down <= max_total_ports AND n_down >= port_granularity",
+      "6. If invalid, retry. Emit {down_spd: n_down, up_spd: n_up} (merge if down_spd == up_spd)"
+    ],
+    "symmetric": [
+      "1. Sample speed entry weighted by 'weight'",
+      "2. Sample n_ports from [min_ports, max_ports] in steps of port_granularity",
+      "3. Emit {speed: n_ports}"
+    ]
+  },
+
+  "_notes": {
+    "port_granularity": "All port counts must be multiples of this value (QSFP cage grouping, breakout constraints)",
+    "oversub_range": "Ratio of total downlink bandwidth to total uplink bandwidth. 1.0 = non-blocking.",
+    "weight": "Relative sampling probability within the speed_pairs or speeds list. Values need not sum to 1 (they are normalized).",
+    "speed units": "All speeds in Gbps"
+  },
+
+  "profiles": {
+
+    "edge_robo": {
+      "tor": {
+        "port_type": "asymmetric",
+        "max_total_ports": 28,
+        "min_up_ports": 2,
+        "max_up_ports": 8,
+        "port_granularity": 2,
+        "oversub_range": [2.0, 4.0],
+        "speed_pairs": [
+          {"down": 1,  "up": 10, "weight": 0.30},
+          {"down": 10, "up": 25, "weight": 0.50},
+          {"down": 10, "up": 40, "weight": 0.20}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "max_total_ports": 32,
+        "min_up_ports": 2,
+        "max_up_ports": 8,
+        "port_granularity": 2,
+        "oversub_range": [1.0, 2.0],
+        "speed_pairs": [
+          {"down": 1,  "up": 10, "weight": 0.20},
+          {"down": 10, "up": 25, "weight": 0.60},
+          {"down": 10, "up": 40, "weight": 0.20}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "port_granularity": 4,
+        "speeds": [
+          {"speed": 10, "min_ports": 8,  "max_ports": 24, "weight": 0.30},
+          {"speed": 25, "min_ports": 8,  "max_ports": 32, "weight": 0.50},
+          {"speed": 40, "min_ports": 8,  "max_ports": 24, "weight": 0.20}
+        ]
+      },
+      "edge": {
+        "port_type": "symmetric",
+        "port_granularity": 2,
+        "speeds": [
+          {"speed": 1,  "min_ports": 4, "max_ports": 12, "weight": 0.20},
+          {"speed": 10, "min_ports": 4, "max_ports": 12, "weight": 0.60},
+          {"speed": 25, "min_ports": 2, "max_ports": 8,  "weight": 0.20}
+        ]
+      }
+    },
+
+    "enterprise": {
+      "tor": {
+        "port_type": "asymmetric",
+        "max_total_ports": 64,
+        "min_up_ports": 4,
+        "max_up_ports": 16,
+        "port_granularity": 4,
+        "oversub_range": [1.5, 4.0],
+        "speed_pairs": [
+          {"down": 10, "up": 40,  "weight": 0.15},
+          {"down": 10, "up": 100, "weight": 0.15},
+          {"down": 25, "up": 40,  "weight": 0.10},
+          {"down": 25, "up": 100, "weight": 0.60}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "max_total_ports": 64,
+        "min_up_ports": 4,
+        "max_up_ports": 16,
+        "port_granularity": 4,
+        "oversub_range": [1.0, 2.0],
+        "speed_pairs": [
+          {"down": 10, "up": 40,  "weight": 0.15},
+          {"down": 25, "up": 40,  "weight": 0.20},
+          {"down": 25, "up": 100, "weight": 0.65}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "port_granularity": 4,
+        "speeds": [
+          {"speed": 40,  "min_ports": 32, "max_ports": 64, "weight": 0.30},
+          {"speed": 100, "min_ports": 32, "max_ports": 64, "weight": 0.70}
+        ]
+      },
+      "edge": {
+        "port_type": "symmetric",
+        "port_granularity": 4,
+        "speeds": [
+          {"speed": 10,  "min_ports": 8,  "max_ports": 24, "weight": 0.25},
+          {"speed": 25,  "min_ports": 8,  "max_ports": 24, "weight": 0.35},
+          {"speed": 100, "min_ports": 4,  "max_ports": 16, "weight": 0.40}
+        ]
+      }
+    },
+
+    "cloud": {
+      "tor": {
+        "port_type": "asymmetric",
+        "max_total_ports": 72,
+        "min_up_ports": 8,
+        "max_up_ports": 16,
+        "port_granularity": 4,
+        "oversub_range": [1.0, 2.0],
+        "speed_pairs": [
+          {"down": 25,  "up": 100, "weight": 0.30},
+          {"down": 25,  "up": 200, "weight": 0.10},
+          {"down": 100, "up": 200, "weight": 0.20},
+          {"down": 100, "up": 400, "weight": 0.40}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "max_total_ports": 64,
+        "min_up_ports": 8,
+        "max_up_ports": 16,
+        "port_granularity": 4,
+        "oversub_range": [1.0, 1.5],
+        "speed_pairs": [
+          {"down": 25,  "up": 100, "weight": 0.25},
+          {"down": 100, "up": 200, "weight": 0.25},
+          {"down": 100, "up": 400, "weight": 0.50}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "port_granularity": 8,
+        "speeds": [
+          {"speed": 100, "min_ports": 64, "max_ports": 128, "weight": 0.25},
+          {"speed": 200, "min_ports": 32, "max_ports": 64,  "weight": 0.10},
+          {"speed": 400, "min_ports": 32, "max_ports": 64,  "weight": 0.45},
+          {"speed": 800, "min_ports": 16, "max_ports": 32,  "weight": 0.20}
+        ]
+      },
+      "edge": {
+        "port_type": "symmetric",
+        "port_granularity": 4,
+        "speeds": [
+          {"speed": 100, "min_ports": 8,  "max_ports": 24, "weight": 0.30},
+          {"speed": 400, "min_ports": 4,  "max_ports": 16, "weight": 0.70}
+        ]
+      }
+    },
+
+    "ai_gpu": {
+      "tor": {
+        "port_type": "asymmetric",
+        "max_total_ports": 72,
+        "min_up_ports": 8,
+        "max_up_ports": 16,
+        "port_granularity": 4,
+        "oversub_range": [1.0, 1.0],
+        "speed_pairs": [
+          {"down": 100, "up": 400, "weight": 0.10},
+          {"down": 400, "up": 400, "weight": 0.35},
+          {"down": 400, "up": 800, "weight": 0.30},
+          {"down": 800, "up": 800, "weight": 0.25}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "max_total_ports": 64,
+        "min_up_ports": 8,
+        "max_up_ports": 16,
+        "port_granularity": 4,
+        "oversub_range": [1.0, 1.0],
+        "speed_pairs": [
+          {"down": 100, "up": 400, "weight": 0.10},
+          {"down": 400, "up": 400, "weight": 0.35},
+          {"down": 400, "up": 800, "weight": 0.30},
+          {"down": 800, "up": 800, "weight": 0.25}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "port_granularity": 8,
+        "speeds": [
+          {"speed": 200, "min_ports": 32, "max_ports": 64, "weight": 0.10},
+          {"speed": 400, "min_ports": 32, "max_ports": 64, "weight": 0.50},
+          {"speed": 800, "min_ports": 16, "max_ports": 64, "weight": 0.40}
+        ]
+      },
+      "edge": {
+        "port_type": "symmetric",
+        "port_granularity": 2,
+        "speeds": [
+          {"speed": 100, "min_ports": 4, "max_ports": 8,  "weight": 0.30},
+          {"speed": 400, "min_ports": 4, "max_ports": 8,  "weight": 0.70}
+        ]
+      }
+    }
+
+  }
+}

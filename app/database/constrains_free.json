@@ -1,0 +1,332 @@
+{
+  "_description": "Experimental constraint spec for generating non-conventional switch port-count tuples. Roles and tiers have relaxed restrictions: unusual speed combinations, extreme oversubscription, multi-speed nodes, and cross-tier speed overlaps are all valid.",
+
+  "_tuple_format": "(dc_type, role, {speed_gbps: port_count, ...})",
+
+  "_generation_algorithm": {
+    "asymmetric": [
+      "1. Sample speed_pair (down_spd, up_spd) weighted by 'weight'",
+      "2. Sample n_up from [min_up_ports, max_up_ports] in steps of port_granularity",
+      "3. Sample oversub uniformly from oversub_range",
+      "4. Compute n_down = round(oversub * n_up * up_spd / down_spd) aligned to port_granularity",
+      "5. Validate: n_up + n_down <= max_total_ports AND n_down >= port_granularity",
+      "6. If invalid, retry. Emit {down_spd: n_down, up_spd: n_up} (merge if down_spd == up_spd)"
+    ],
+    "symmetric": [
+      "1. Sample speed entry weighted by 'weight'",
+      "2. Sample n_ports from [min_ports, max_ports] in steps of port_granularity",
+      "3. Emit {speed: n_ports}"
+    ],
+    "multi_speed": [
+      "1. Sample a speed_group (list of 3 speeds: down, mid, up) weighted by 'weight'",
+      "2. Sample n_up from [min_up_ports, max_up_ports] in steps of port_granularity",
+      "3. Sample n_mid from [min_mid_ports, max_mid_ports] in steps of port_granularity",
+      "4. Sample oversub uniformly from oversub_range",
+      "5. Compute n_down = round(oversub * (n_up * up_spd + n_mid * mid_spd) / down_spd) aligned to port_granularity",
+      "6. Validate: n_up + n_mid + n_down <= max_total_ports AND n_down >= port_granularity",
+      "7. If invalid, retry. Emit {down_spd: n_down, mid_spd: n_mid, up_spd: n_up}"
+    ]
+  },
+
+  "_notes": {
+    "port_granularity": "Minimum grouping unit for port counts. Set to 1 to allow any count.",
+    "oversub_range": "Values below 1.0 mean uplinks have MORE bandwidth than downlinks (reverse oversubscription, valid in storage or high-availability designs).",
+    "weight": "Relative sampling probability. Unusual combinations have lower weight but are still reachable.",
+    "speed units": "All speeds in Gbps",
+    "multi_speed": "Port type that allows three distinct speed tiers on a single node (e.g. servers at 25G, inter-leaf at 100G, spine uplinks at 400G).",
+    "unconventional_flags": "Fields marked with _uc_ prefix indicate parameters that deviate from industry norms intentionally."
+  },
+
+  "profiles": {
+
+    "edge_robo": {
+      "tor": {
+        "port_type": "asymmetric",
+        "_uc_note": "Allows high-speed uplinks (100G/400G) uncommon in branch offices; extreme oversub for dense IoT/sensor deployments",
+        "max_total_ports": 64,
+        "min_up_ports": 1,
+        "max_up_ports": 16,
+        "port_granularity": 1,
+        "oversub_range": [1.0, 10.0],
+        "speed_pairs": [
+          {"down": 1,   "up": 1,   "weight": 0.05},
+          {"down": 1,   "up": 10,  "weight": 0.20},
+          {"down": 1,   "up": 25,  "weight": 0.10},
+          {"down": 10,  "up": 10,  "weight": 0.10},
+          {"down": 10,  "up": 25,  "weight": 0.20},
+          {"down": 10,  "up": 40,  "weight": 0.10},
+          {"down": 10,  "up": 100, "weight": 0.10},
+          {"down": 25,  "up": 100, "weight": 0.08},
+          {"down": 25,  "up": 400, "weight": 0.04},
+          {"down": 100, "up": 400, "weight": 0.03}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "_uc_note": "Allows reverse oversubscription (uplinks faster than aggregated downlinks) for latency-sensitive edge applications",
+        "max_total_ports": 64,
+        "min_up_ports": 1,
+        "max_up_ports": 32,
+        "port_granularity": 1,
+        "oversub_range": [0.5, 6.0],
+        "speed_pairs": [
+          {"down": 1,   "up": 10,  "weight": 0.10},
+          {"down": 1,   "up": 25,  "weight": 0.05},
+          {"down": 10,  "up": 10,  "weight": 0.15},
+          {"down": 10,  "up": 25,  "weight": 0.20},
+          {"down": 10,  "up": 100, "weight": 0.15},
+          {"down": 25,  "up": 25,  "weight": 0.10},
+          {"down": 25,  "up": 100, "weight": 0.15},
+          {"down": 25,  "up": 400, "weight": 0.05},
+          {"down": 100, "up": 100, "weight": 0.03},
+          {"down": 100, "up": 400, "weight": 0.02}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "_uc_note": "Allows 400G spine in a branch office — valid in SD-WAN aggregation sites or regional hubs",
+        "port_granularity": 1,
+        "speeds": [
+          {"speed": 1,   "min_ports": 4,  "max_ports": 24, "weight": 0.10},
+          {"speed": 10,  "min_ports": 4,  "max_ports": 32, "weight": 0.30},
+          {"speed": 25,  "min_ports": 4,  "max_ports": 32, "weight": 0.30},
+          {"speed": 40,  "min_ports": 4,  "max_ports": 24, "weight": 0.15},
+          {"speed": 100, "min_ports": 4,  "max_ports": 24, "weight": 0.10},
+          {"speed": 400, "min_ports": 2,  "max_ports": 16, "weight": 0.05}
+        ]
+      },
+      "edge": {
+        "port_type": "symmetric",
+        "_uc_note": "Allows edge routers with very few ports at high speed — valid for SD-WAN CPE or DIA handoffs",
+        "port_granularity": 1,
+        "speeds": [
+          {"speed": 1,   "min_ports": 1, "max_ports": 12, "weight": 0.20},
+          {"speed": 10,  "min_ports": 1, "max_ports": 12, "weight": 0.35},
+          {"speed": 25,  "min_ports": 1, "max_ports": 8,  "weight": 0.25},
+          {"speed": 100, "min_ports": 1, "max_ports": 8,  "weight": 0.15},
+          {"speed": 400, "min_ports": 1, "max_ports": 4,  "weight": 0.05}
+        ]
+      }
+    },
+
+    "enterprise": {
+      "tor": {
+        "port_type": "multi_speed",
+        "_uc_note": "Three-speed ToR: legacy 1G servers + main 10/25G servers + high-speed storage or GPU uplinks — common in mixed-generation enterprise floors",
+        "max_total_ports": 80,
+        "min_up_ports": 2,
+        "max_up_ports": 16,
+        "min_mid_ports": 2,
+        "max_mid_ports": 24,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 8.0],
+        "speed_groups": [
+          {"down": 1,  "mid": 10,  "up": 40,  "weight": 0.10},
+          {"down": 1,  "mid": 10,  "up": 100, "weight": 0.10},
+          {"down": 1,  "mid": 25,  "up": 100, "weight": 0.10},
+          {"down": 10, "mid": 25,  "up": 100, "weight": 0.25},
+          {"down": 10, "mid": 40,  "up": 100, "weight": 0.15},
+          {"down": 25, "mid": 100, "up": 400, "weight": 0.20},
+          {"down": 10, "mid": 100, "up": 400, "weight": 0.10}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "_uc_note": "Allows high oversub or reverse oversub; includes 400G uplinks for enterprises with GPU workloads or direct cloud links",
+        "max_total_ports": 80,
+        "min_up_ports": 2,
+        "max_up_ports": 24,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 4.0],
+        "speed_pairs": [
+          {"down": 1,   "up": 10,  "weight": 0.05},
+          {"down": 10,  "up": 25,  "weight": 0.10},
+          {"down": 10,  "up": 40,  "weight": 0.10},
+          {"down": 10,  "up": 100, "weight": 0.15},
+          {"down": 25,  "up": 40,  "weight": 0.10},
+          {"down": 25,  "up": 100, "weight": 0.25},
+          {"down": 25,  "up": 200, "weight": 0.10},
+          {"down": 25,  "up": 400, "weight": 0.05},
+          {"down": 100, "up": 100, "weight": 0.05},
+          {"down": 100, "up": 400, "weight": 0.05}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "_uc_note": "Includes 200G and 800G — unusual for enterprise but valid in high-performance campus cores or large financials",
+        "port_granularity": 2,
+        "speeds": [
+          {"speed": 10,  "min_ports": 16, "max_ports": 48, "weight": 0.05},
+          {"speed": 25,  "min_ports": 16, "max_ports": 64, "weight": 0.10},
+          {"speed": 40,  "min_ports": 16, "max_ports": 64, "weight": 0.15},
+          {"speed": 100, "min_ports": 16, "max_ports": 80, "weight": 0.40},
+          {"speed": 200, "min_ports": 8,  "max_ports": 64, "weight": 0.15},
+          {"speed": 400, "min_ports": 8,  "max_ports": 64, "weight": 0.10},
+          {"speed": 800, "min_ports": 4,  "max_ports": 32, "weight": 0.05}
+        ]
+      },
+      "edge": {
+        "port_type": "asymmetric",
+        "_uc_note": "Edge as asymmetric: WAN-facing ports at lower speed, fabric-facing ports at higher speed — valid for enterprise border routers",
+        "max_total_ports": 64,
+        "min_up_ports": 2,
+        "max_up_ports": 16,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 3.0],
+        "speed_pairs": [
+          {"down": 1,   "up": 10,  "weight": 0.10},
+          {"down": 10,  "up": 25,  "weight": 0.15},
+          {"down": 10,  "up": 100, "weight": 0.20},
+          {"down": 25,  "up": 100, "weight": 0.25},
+          {"down": 100, "up": 100, "weight": 0.15},
+          {"down": 100, "up": 400, "weight": 0.10},
+          {"down": 400, "up": 400, "weight": 0.05}
+        ]
+      }
+    },
+
+    "cloud": {
+      "tor": {
+        "port_type": "multi_speed",
+        "_uc_note": "Three-speed ToR models mixed GPU/CPU racks or racks with NVMe-oF storage at a different speed than compute",
+        "max_total_ports": 96,
+        "min_up_ports": 4,
+        "max_up_ports": 16,
+        "min_mid_ports": 4,
+        "max_mid_ports": 32,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 3.0],
+        "speed_groups": [
+          {"down": 25,  "mid": 100, "up": 200, "weight": 0.10},
+          {"down": 25,  "mid": 100, "up": 400, "weight": 0.20},
+          {"down": 100, "mid": 200, "up": 400, "weight": 0.25},
+          {"down": 100, "mid": 400, "up": 400, "weight": 0.15},
+          {"down": 100, "mid": 200, "up": 800, "weight": 0.10},
+          {"down": 200, "mid": 400, "up": 800, "weight": 0.10},
+          {"down": 400, "mid": 400, "up": 800, "weight": 0.10}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "_uc_note": "Includes reverse oversubscription for storage-heavy leaf nodes; spans from legacy 25G to emerging 800G",
+        "max_total_ports": 96,
+        "min_up_ports": 4,
+        "max_up_ports": 32,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 2.0],
+        "speed_pairs": [
+          {"down": 25,  "up": 100, "weight": 0.10},
+          {"down": 25,  "up": 400, "weight": 0.05},
+          {"down": 100, "up": 100, "weight": 0.10},
+          {"down": 100, "up": 200, "weight": 0.10},
+          {"down": 100, "up": 400, "weight": 0.25},
+          {"down": 200, "up": 400, "weight": 0.15},
+          {"down": 200, "up": 800, "weight": 0.10},
+          {"down": 400, "up": 400, "weight": 0.10},
+          {"down": 400, "up": 800, "weight": 0.05}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "_uc_note": "Includes very small port counts (8) for disaggregated spine-on-a-blade designs and very large (128) for Tomahawk3 in breakout",
+        "port_granularity": 2,
+        "speeds": [
+          {"speed": 100, "min_ports": 8,  "max_ports": 128, "weight": 0.20},
+          {"speed": 200, "min_ports": 8,  "max_ports": 64,  "weight": 0.10},
+          {"speed": 400, "min_ports": 8,  "max_ports": 64,  "weight": 0.40},
+          {"speed": 800, "min_ports": 4,  "max_ports": 64,  "weight": 0.30}
+        ]
+      },
+      "edge": {
+        "port_type": "asymmetric",
+        "_uc_note": "Edge with peering ports (lower speed, many) vs fabric ports (higher speed, fewer) — models IXP-connected border devices",
+        "max_total_ports": 96,
+        "min_up_ports": 2,
+        "max_up_ports": 32,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 4.0],
+        "speed_pairs": [
+          {"down": 10,  "up": 100, "weight": 0.05},
+          {"down": 100, "up": 100, "weight": 0.15},
+          {"down": 100, "up": 200, "weight": 0.10},
+          {"down": 100, "up": 400, "weight": 0.30},
+          {"down": 200, "up": 400, "weight": 0.20},
+          {"down": 400, "up": 400, "weight": 0.10},
+          {"down": 400, "up": 800, "weight": 0.10}
+        ]
+      }
+    },
+
+    "ai_gpu": {
+      "tor": {
+        "port_type": "multi_speed",
+        "_uc_note": "Three-speed: OOB management (low) + storage fabric (mid) + GPU data plane (high). Models DGX SuperPOD-style deployments",
+        "max_total_ports": 96,
+        "min_up_ports": 4,
+        "max_up_ports": 16,
+        "min_mid_ports": 4,
+        "max_mid_ports": 32,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 1.5],
+        "speed_groups": [
+          {"down": 10,  "mid": 100, "up": 400, "weight": 0.05},
+          {"down": 25,  "mid": 100, "up": 400, "weight": 0.05},
+          {"down": 100, "mid": 200, "up": 400, "weight": 0.15},
+          {"down": 100, "mid": 400, "up": 400, "weight": 0.15},
+          {"down": 100, "mid": 400, "up": 800, "weight": 0.20},
+          {"down": 200, "mid": 400, "up": 800, "weight": 0.15},
+          {"down": 400, "mid": 400, "up": 800, "weight": 0.15},
+          {"down": 400, "mid": 800, "up": 800, "weight": 0.10}
+        ]
+      },
+      "leaf": {
+        "port_type": "asymmetric",
+        "_uc_note": "Includes reverse oversubscription (oversub < 1.0): valid when leaf aggregates few high-BW GPU servers toward a fatter spine",
+        "max_total_ports": 96,
+        "min_up_ports": 4,
+        "max_up_ports": 32,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 1.5],
+        "speed_pairs": [
+          {"down": 100, "up": 400, "weight": 0.05},
+          {"down": 200, "up": 400, "weight": 0.10},
+          {"down": 400, "up": 400, "weight": 0.25},
+          {"down": 200, "up": 800, "weight": 0.10},
+          {"down": 400, "up": 800, "weight": 0.30},
+          {"down": 800, "up": 800, "weight": 0.20}
+        ]
+      },
+      "spine": {
+        "port_type": "symmetric",
+        "_uc_note": "Very small port counts allowed (4–8) for disaggregated spine designs with many small ASIC tiles; 1600G reserved for near-future silicon (Tomahawk6 roadmap)",
+        "port_granularity": 2,
+        "speeds": [
+          {"speed": 100, "min_ports": 4,  "max_ports": 48, "weight": 0.05},
+          {"speed": 200, "min_ports": 4,  "max_ports": 64, "weight": 0.10},
+          {"speed": 400, "min_ports": 4,  "max_ports": 64, "weight": 0.40},
+          {"speed": 800, "min_ports": 4,  "max_ports": 64, "weight": 0.40},
+          {"speed": 1600,"min_ports": 2,  "max_ports": 32, "weight": 0.05}
+        ]
+      },
+      "edge": {
+        "port_type": "multi_speed",
+        "_uc_note": "Three-speed edge in AI clusters: OOB/telemetry at low speed, internal cross-cluster links at mid, WAN/DCI at high — models multi-cluster GPU superpods",
+        "max_total_ports": 64,
+        "min_up_ports": 2,
+        "max_up_ports": 16,
+        "min_mid_ports": 2,
+        "max_mid_ports": 16,
+        "port_granularity": 2,
+        "oversub_range": [0.5, 3.0],
+        "speed_groups": [
+          {"down": 10,  "mid": 100, "up": 400, "weight": 0.20},
+          {"down": 25,  "mid": 100, "up": 400, "weight": 0.20},
+          {"down": 100, "mid": 400, "up": 400, "weight": 0.20},
+          {"down": 100, "mid": 400, "up": 800, "weight": 0.20},
+          {"down": 200, "mid": 400, "up": 800, "weight": 0.20}
+        ]
+      }
+    }
+
+  }
+}
