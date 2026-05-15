@@ -93,7 +93,7 @@ class Switch:
         selected_row = req_df.loc[selected_row_idx]
 
         if not set(req_speeds).issubset(set(self.speeds)):
-            print("requirements contain speeds not available on this Switch")
+            #print("requirements contain speeds not available on this Switch")
             return False
 
         aligned_point = []
