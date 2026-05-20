@@ -13,6 +13,6 @@ app/database/price_lookup.csv
 2. html file located in app/nokia_vs_arista_vs_cisco_comparison_standalone.html
 
 ## Run single case
-1. Edit custom single case /app/generated_ports_custom.xlsx
+1. Edit custom single case /app/generated_ports_custom.csv
 2. run app/config_custom.ipynb
 3. html file located in app/nokia_vs_arista_vs_cisco_comparison_custom.html
